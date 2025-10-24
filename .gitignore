@@ -1,0 +1,18 @@
+# Python caches and environments
+__pycache__/
+.pytest_cache/
+.venv/
+
+# Local runtime configuration
+.DS_Store
+
+# Generated knowledge artifacts
+extracted_knowledge/
+
+# Large transcript exports (regenerate from source of truth)
+transcripts/*.txt
+transcripts/*.json
+
+# Virtual env tooling
+*.egg-info/
+pip-wheel-metadata/
