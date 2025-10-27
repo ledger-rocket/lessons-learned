@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+jobs:
+  conventional-commits:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: webiny/action-conventional-commits@v1.2.0
+
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - uses: astral-sh/setup-uv@v3
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: just
+      - name: Install dependencies
+        run: uv sync --extra dev
+      - name: Format check
+        run: just format-check
+      - name: Lint
+        run: just lint
+      - name: Type check
+        run: just typecheck
+      - name: Tests
+        run: just test

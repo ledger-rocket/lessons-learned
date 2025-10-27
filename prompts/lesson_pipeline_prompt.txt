@@ -1,0 +1,11 @@
+You are extracting concrete engineering lessons from the transcript window.
+Analyse the conversation and produce a single lesson focused on what engineers should do differently.
+
+Conversation window:
+{conversation_window}
+
+Provide JSON with fields is_correction, lesson_title, instruction, category, confidence.
+Use the timestamp {timestamp} and the original user message:
+{user_message}
+
+Valid categories: {categories}.

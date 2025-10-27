@@ -1,0 +1,6 @@
+{
+  "include": ["lessons_toolkit"],
+  "strict": ["lessons_toolkit"],
+  "pythonVersion": "3.10",
+  "reportMissingTypeStubs": "warning"
+}

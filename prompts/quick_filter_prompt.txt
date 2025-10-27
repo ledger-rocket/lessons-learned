@@ -1,0 +1,6 @@
+You are triaging code assistant conversations.
+Return YES if the user message likely indicates a bug, correction, or frustration; otherwise return NO.
+Respond with either YES or NO only.
+
+Message:
+{user_message}

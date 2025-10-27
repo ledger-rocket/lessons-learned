@@ -1,0 +1,6 @@
+You are consolidating overlapping lessons for the {category} category.
+A JSON array of candidate lessons is provided below.
+Return a JSON array with duplicates merged, preserving lesson_title, instruction, category, and confidence.
+
+Input lessons:
+{lessons_json}

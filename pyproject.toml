@@ -1,0 +1,64 @@
+[build-system]
+requires = ["hatchling>=1.18"]
+build-backend = "hatchling.build"
+
+[project]
+name = "lessons-toolkit"
+version = "0.1.0"
+description = "Toolkit for extracting lessons learned from Claude Code transcripts."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+  {name = "Ledger Rocket"}
+]
+dependencies = [
+  "anthropic>=0.39.0",
+  "pydantic>=2.8.0",
+  "pydantic-settings>=2.4.0",
+]
+
+
+[project.optional-dependencies]
+dev = [
+  "ruff>=0.14.2",
+  "pytest>=8.4.2",
+  "pyright>=1.1.407",
+]
+
+[project.scripts]
+lessons-tk = "lessons_toolkit.cli:main"
+
+[tool.uv]
+package = true
+
+[tool.hatch.build]
+include = [
+  "lessons_toolkit/**",
+  "prompts/*.txt",
+  "Justfile",
+  "README.md",
+  "AGENTS.md",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+preview = true
+select = ["ALL"]
+ignore = ["CPY001", "D203", "D213"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101", "D103", "PT018"]
+
+[tool.ruff.format]
+preview = true
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.407",
+    "pytest>=8.4.2",
+    "ruff>=0.14.2",
+]

@@ -1,0 +1,6 @@
+You are reviewing user messages from an internal code assistant.
+Determine if the message describes a correction or user frustration.
+Respond as JSON with keys reason, is_correction, is_frustrated, confidence.
+
+User message:
+{user_message}

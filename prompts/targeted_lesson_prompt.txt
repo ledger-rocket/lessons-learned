@@ -1,0 +1,14 @@
+You are regenerating a single lesson from a stored correction.
+Review the transcript excerpt, timestamp, user correction, and original classification to reconstruct the lesson.
+
+Timestamp: {timestamp}
+Transcript window:
+{conversation_window}
+
+User correction:
+{user_correction}
+
+Classification JSON:
+{classification}
+
+Respond with JSON containing lesson_title, instruction, category, and confidence.
