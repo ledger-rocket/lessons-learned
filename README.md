@@ -4,6 +4,14 @@ Extract durable guidance from Claude Code transcripts with a transport-agnostic,
 project now follows a ports-and-adapters design so you can swap between the Claude CLI and the
 Anthropic API without touching the core logic.
 
+## Why this exists
+
+We keep correcting Claude on the same issues session after session. Instead of repeating ourselves, this
+toolkit parses the Claude logs, pulls out the human corrections, and turns them into short rules. At the
+start of a new chat we can hand Claude those rules and make sure it reads them before touching the
+keyboard. The goal is simple: stop firefighting the same mistakes by giving the assistant a memory of the
+guardrails we have already established.
+
 ## Quick Start (uv)
 
 ```bash
