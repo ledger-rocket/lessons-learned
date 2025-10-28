@@ -6,20 +6,11 @@ Anthropic API without touching the core logic.
 
 ## Why this exists
 
-- **Claude keeps repeating the same mistakes.** Every incident review starts with “we told it last week,”
-  yet the assistant falls into the same traps—destroying IAM bindings, skipping health checks, pushing
-  broken deploys—because that context isn’t surfaced at the start of a session.
-- **We need the corrections, not the chitchat.** Claude Code transcripts are long and noisy. Buried inside
-  are the “do this differently” messages where the human corrects the assistant. Those are the signals we
-  want to capture and generalise.
-- **Generate reusable guardrails.** By parsing transcripts, pulling out those corrections, and clustering
-  them into markdown/JSON rules, we can prompt Claude at the start of the next chat (“read these rules and
-  confirm you understand”) so it avoids the previous pitfalls.
-- **Multiple transports must behave the same.** Whether the team is on the CLI, Anthropic API, or Bedrock,
-  the pipeline has to produce the same set of guardrails so we can maintain a single source of truth.
-
-This toolkit automates that process: extract the corrections from historical logs, generalise them into
-lessons, and produce artefacts that the next Claude session can ingest before writing a single command.
+We keep correcting Claude on the same issues session after session. Instead of repeating ourselves, this
+toolkit parses the Claude logs, pulls out the human corrections, and turns them into short rules. At the
+start of a new chat we can hand Claude those rules and make sure it reads them before touching the
+keyboard. The goal is simple: stop firefighting the same mistakes by giving the assistant a memory of the
+guardrails we have already established.
 
 ## Quick Start (uv)
 
