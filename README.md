@@ -4,6 +4,24 @@ Extract durable guidance from Claude Code transcripts with a transport-agnostic,
 project now follows a ports-and-adapters design so you can swap between the Claude CLI and the
 Anthropic API without touching the core logic.
 
+## Why this exists
+
+- **Raw chat logs are noisy.** Claude sessions mix acknowledgements, link drops, and partial fixes with
+  the genuine “do this differently next time” insights we care about. Manually sifting transcripts does
+  not scale and the signal is inconsistent between engineers.
+- **We need repeatable lessons.** Product and engineering reviews depend on a canonical stream of
+  corrections and frustrations so we can spot recurring missteps (bad deploy hygiene, missing metrics,
+  access gaps, etc.). Ad‑hoc summaries drift quickly.
+- **Transports keep changing.** Sometimes the team runs the Claude CLI locally, sometimes we lean on the
+  Anthropic API or Bedrock. A single pipeline should work regardless of transport so we can compare
+  lessons over time.
+- **Downstream artefacts must stay fresh.** The business consumes JSON/Markdown outputs to populate
+  dashboards and weekly retros. A reproducible toolchain – with prompt extraction, classification,
+  lesson generation, and dedupe – keeps those artefacts trustworthy.
+
+This repository is the production-ready implementation of that flow: feed it Claude transcripts and it
+spits out validated, deduplicated “lessons learned” that are safe to publish internally.
+
 ## Quick Start (uv)
 
 ```bash
