@@ -6,21 +6,20 @@ Anthropic API without touching the core logic.
 
 ## Why this exists
 
-- **Raw chat logs are noisy.** Claude sessions mix acknowledgements, link drops, and partial fixes with
-  the genuine “do this differently next time” insights we care about. Manually sifting transcripts does
-  not scale and the signal is inconsistent between engineers.
-- **We need repeatable lessons.** Product and engineering reviews depend on a canonical stream of
-  corrections and frustrations so we can spot recurring missteps (bad deploy hygiene, missing metrics,
-  access gaps, etc.). Ad‑hoc summaries drift quickly.
-- **Transports keep changing.** Sometimes the team runs the Claude CLI locally, sometimes we lean on the
-  Anthropic API or Bedrock. A single pipeline should work regardless of transport so we can compare
-  lessons over time.
-- **Downstream artefacts must stay fresh.** The business consumes JSON/Markdown outputs to populate
-  dashboards and weekly retros. A reproducible toolchain – with prompt extraction, classification,
-  lesson generation, and dedupe – keeps those artefacts trustworthy.
+- **Claude keeps repeating the same mistakes.** Every incident review starts with “we told it last week,”
+  yet the assistant falls into the same traps—destroying IAM bindings, skipping health checks, pushing
+  broken deploys—because that context isn’t surfaced at the start of a session.
+- **We need the corrections, not the chitchat.** Claude Code transcripts are long and noisy. Buried inside
+  are the “do this differently” messages where the human corrects the assistant. Those are the signals we
+  want to capture and generalise.
+- **Generate reusable guardrails.** By parsing transcripts, pulling out those corrections, and clustering
+  them into markdown/JSON rules, we can prompt Claude at the start of the next chat (“read these rules and
+  confirm you understand”) so it avoids the previous pitfalls.
+- **Multiple transports must behave the same.** Whether the team is on the CLI, Anthropic API, or Bedrock,
+  the pipeline has to produce the same set of guardrails so we can maintain a single source of truth.
 
-This repository is the production-ready implementation of that flow: feed it Claude transcripts and it
-spits out validated, deduplicated “lessons learned” that are safe to publish internally.
+This toolkit automates that process: extract the corrections from historical logs, generalise them into
+lessons, and produce artefacts that the next Claude session can ingest before writing a single command.
 
 ## Quick Start (uv)
 
