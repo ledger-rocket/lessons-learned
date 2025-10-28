@@ -42,6 +42,11 @@ FULL_TEMPLATE = "lesson_pipeline_prompt.txt"
 DEDUPE_TEMPLATE = "dedupe_prompt.txt"
 TARGETED_TEMPLATE = "targeted_lesson_prompt.txt"
 
+_CATEGORY_PROMPT_VALUES = tuple(cat.value for cat in Category if cat is not Category.OTHER)
+_CATEGORY_PROMPT_VALUES_WITH_OTHER = (*_CATEGORY_PROMPT_VALUES, Category.OTHER.value)
+_CATEGORIES_TEXT = ", ".join(_CATEGORY_PROMPT_VALUES_WITH_OTHER)
+_CATEGORIES_ENUM = ", ".join(f'"{value}"' for value in _CATEGORY_PROMPT_VALUES_WITH_OTHER)
+
 
 @dataclass(frozen=True)
 class PipelineDependencies:
@@ -210,18 +215,12 @@ class LessonPipeline:
         if not window:
             return None
 
-        category_values = [cat.value for cat in Category if cat is not Category.OTHER]
-        categories_text = ", ".join((*category_values, Category.OTHER.value))
-        categories_enum = ", ".join(
-            f'"{value}"' for value in (*category_values, Category.OTHER.value)
-        )
-
         full_prompt = template_full.format(
             conversation_window=window,
             timestamp=prompt.iso_timestamp,
             user_message=prompt.content,
-            categories=categories_text,
-            categories_enumerated=categories_enum,
+            categories=_CATEGORIES_TEXT,
+            categories_enumerated=_CATEGORIES_ENUM,
         )
         response = self._claude.invoke(
             full_prompt,
@@ -618,19 +617,13 @@ class TargetedLessonExtractor:
                 failures.append({"timestamp": iso_timestamp, "error": "timestamp_not_found"})
                 continue
 
-            category_values = [cat.value for cat in Category if cat is not Category.OTHER]
-            categories_text = ", ".join((*category_values, Category.OTHER.value))
-            categories_enum = ", ".join(
-                f'"{value}"' for value in (*category_values, Category.OTHER.value)
-            )
-
             prompt_text = template.format(
                 conversation_window=window,
                 timestamp=iso_timestamp,
                 user_correction=correction.prompt,
                 classification=json.dumps(correction.classification, indent=2),
-                categories=categories_text,
-                categories_enumerated=categories_enum,
+                categories=_CATEGORIES_TEXT,
+                categories_enumerated=_CATEGORIES_ENUM,
             )
             response = self._claude.invoke(
                 prompt_text,

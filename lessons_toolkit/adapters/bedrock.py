@@ -82,6 +82,8 @@ class BedrockClaudeAdapter(ClaudePort):
             api_token: Optional Bedrock API token enabling direct HTTP invocation
                 without AWS credentials.
             http_pool_size: Max pooled connections for HTTP token mode (defaults to 50).
+            model_aliases: Optional mapping of logical model names to the identifiers required
+                by the Bedrock endpoint (typically inference profile ARNs).
 
         Raises:
             ValueError: If ``api_token`` is provided without an accompanying ``region``.
