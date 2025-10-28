@@ -178,14 +178,12 @@ class BedrockClaudeAdapter(ClaudePort):
             return None
 
         try:
-            invoke_kwargs: dict[str, object] = {
-                "modelId": target_model,
-                "body": json.dumps(payload),
-                "contentType": "application/json",
-                "accept": "application/json",
-            }
-
-            response = self._client.invoke_model(**invoke_kwargs)
+            response = self._client.invoke_model(
+                modelId=target_model,
+                body=json.dumps(payload),
+                contentType="application/json",
+                accept="application/json",
+            )
         except (BotoCoreError, ClientError) as exc:  # pragma: no cover - network failures
             logger.warning("Bedrock invocation failed: %s", exc)
             return None
