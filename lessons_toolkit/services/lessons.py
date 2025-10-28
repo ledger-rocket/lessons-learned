@@ -42,6 +42,7 @@ FULL_TEMPLATE = "lesson_pipeline_prompt.txt"
 DEDUPE_TEMPLATE = "dedupe_prompt.txt"
 TARGETED_TEMPLATE = "targeted_lesson_prompt.txt"
 
+
 @dataclass(frozen=True)
 class PipelineDependencies:
     """Dependencies required to run the lesson pipeline."""
@@ -211,7 +212,9 @@ class LessonPipeline:
 
         category_values = [cat.value for cat in Category if cat is not Category.OTHER]
         categories_text = ", ".join((*category_values, Category.OTHER.value))
-        categories_enum = ", ".join(f'"{value}"' for value in (*category_values, Category.OTHER.value))
+        categories_enum = ", ".join(
+            f'"{value}"' for value in (*category_values, Category.OTHER.value)
+        )
 
         full_prompt = template_full.format(
             conversation_window=window,
@@ -617,7 +620,9 @@ class TargetedLessonExtractor:
 
             category_values = [cat.value for cat in Category if cat is not Category.OTHER]
             categories_text = ", ".join((*category_values, Category.OTHER.value))
-            categories_enum = ", ".join(f'"{value}"' for value in (*category_values, Category.OTHER.value))
+            categories_enum = ", ".join(
+                f'"{value}"' for value in (*category_values, Category.OTHER.value)
+            )
 
             prompt_text = template.format(
                 conversation_window=window,
