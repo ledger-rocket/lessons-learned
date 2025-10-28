@@ -1,216 +1,139 @@
-# Lessons Learned - Automated Knowledge Extraction
+# Lessons Learned Toolkit
 
-Extracts actionable lessons from Claude Code conversation history by analyzing times when the user corrected the agent.
+Extract durable guidance from Claude Code transcripts with a transport-agnostic, typed pipeline. The
+project now follows a ports-and-adapters design so you can swap between the Claude CLI and the
+Anthropic API without touching the core logic.
 
-## Purpose
-
-Mine your Claude Code session transcripts to identify hard-won knowledge:
-
-- Times you corrected the agent
-- Patterns of mistakes that wasted time
-- Infrastructure details learned through trial-and-error
-- Best practices discovered through frustration
-
-**Goal:** Create a `lessons_learned.md` file with instructions to prevent the agent from repeating the same mistakes.
-
-## How It Works
-
-**Unified Pipeline** (`extract_all_lessons.py`):
-
-1. **Quick Classification** (Haiku 4.5)
-   - For each user prompt: "Is this a correction?"
-   - Fast filter to identify potential lessons
-
-2. **Context Extraction**
-   - If classified as correction: Get 100 lines before/after from transcript
-   - Provides full conversation context
-
-3. **Lesson Extraction** (Haiku 4.5)
-   - Send prompt + context to Claude
-   - Confirm it's a correction with full context
-   - Extract: lesson title + instruction + category
-   - LLM outputs reasoning (helps it think) but reasoning is NOT saved
-
-4. **Grouping**
-   - Sort lessons by category (infrastructure, code_patterns, etc.)
-
-5. **Deduplication** (Sonnet 4.5, parallel by category)
-   - Merge similar lessons within each category
-   - Use smarter model for complex merging decisions
-
-6. **Output**
-   - `lessons_learned.md` - Clean markdown (titles + instructions only)
-   - `lessons_learned.json` - Structured data for processing
-
-## Usage
-
-### Run the Main Script
+## Quick Start (uv)
 
 ```bash
-cd /Users/laurencehook/Claude-scratchpad/lessons-learned
-time python3 scripts/extract_all_lessons.py
+cd lessons-learned
+uv sync --extra dev      # install runtime + tooling
+dotenv -q set LESSONS_TRANSPORT=cli  # optional convenience
+uv run lessons-tk --help
 ```
 
-**Configuration:**
+All commands execute through `uv run …`. The `lessons_toolkit.cli` entrypoint stays thin: it loads
+`ToolkitSettings`, builds adapters via the composition root, and delegates to domain services.
 
-- Edit line 325-326 to limit prompts: `prompts = prompts[:200]`
-- Parallel workers: 20 (line 354)
-- Models: Haiku 4.5 (classify/extract), Sonnet 4.5 (dedupe)
+## Configuration & Settings
 
-**Expected Time:**
+`ToolkitSettings` (backed by Pydantic v2 + `BaseSettings`) centralises runtime configuration. Every
+field can be overridden via environment variables prefixed with `LESSONS_` or passed through the CLI.
+Common knobs:
 
-- 200 prompts: ~5 minutes
-- 1,133 prompts (full): ~28 minutes
+- `LESSONS_TRANSPORT=cli|api|bedrock` – select the Claude CLI, Anthropic Messages API, or AWS Bedrock runtime.
+- `LESSONS_ANTHROPIC_API_KEY` (and optional `LESSONS_ANTHROPIC_BASE_URL`) for API mode.
+- `LESSONS_CLAUDE_PROJECT_ID` – optional default Claude Code project used when pulling logs from
+  `~/.claude/projects`.
+- `LESSONS_CLAUDE_PROJECTS_DIR` – override the Claude projects root (defaults to
+  `~/.claude/projects`).
+- Bedrock mode honours standard AWS credentials (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, named profiles) plus optional toolkit overrides (`LESSONS_BEDROCK_REGION`, `LESSONS_BEDROCK_PROFILE`, etc.). `ToolkitSettings` defaults point at Claude 4.5 model IDs; supply matching inference profile ARNs via environment variables when you run in your own AWS account. If you authenticate with a Bedrock API token, the toolkit will automatically call the inference profile endpoints so 4.x models work as expected.
+- `LESSONS_PROMPTS_FILE`, `LESSONS_TRANSCRIPT_FILE`, `LESSONS_CORRECTIONS_FILE`, etc., to move
+  artefacts.
+- `LESSONS_CONTEXT_BEFORE` / `LESSONS_CONTEXT_AFTER` to tune transcript windows.
 
-**Output files:**
+### Bedrock model identifiers
 
-- `extracted_knowledge/lessons_learned.md` - Final lessons (clean, no metadata)
-- `extracted_knowledge/lessons_learned.json` - Structured JSON by category
-- `extracted_knowledge/lessons_raw.jsonl` - Raw extractions before dedup
-
-### Viewing Results
-
-```bash
-# View markdown output
-cat extracted_knowledge/lessons_learned.md
-
-# Count lessons by category
-cat extracted_knowledge/lessons_learned.json | jq 'to_entries | .[] | "\(.key): \(.value | length)"'
-```
-
-## Output Format
-
-### lessons_learned.md
-
-Clean markdown organized by category:
-
-```markdown
-# Lessons Learned
-
-## Code Patterns & Practices
-
-### Stop guessing about errors - read the actual code first
-
-When debugging an error, read the actual implementation code that creates
-the transfers and accounts before speculating about causes...
-
-### Never leave temporary files or backups in main directories
-
-When creating temporary files for exploration or testing, immediately move
-them to an archive directory...
-```
-
-**No reasoning, no confidence scores, no timestamps** - just actionable instructions.
-
-## Directory Structure
+Recent Claude releases (4.0 and above) require **inference profile ARNs**, not the bare
+`anthropic.claude-*-*-*` model IDs. `ToolkitSettings` keeps the 4.5 **model IDs** as defaults, but
+you must override your environment with the inference profiles that exist in your account:
 
 ```
-lessons-learned/
-├── README.md              - This file
-├── scripts/               - Extraction scripts
-│   ├── extract_all_lessons.py          - Main unified pipeline ⭐
-│   ├── extract_claude_sessions.py      - Parse .jsonl session logs
-│   ├── extract_user_prompts.py         - Extract user prompts only
-│   ├── classify_corrections.py         - (deprecated, now part of unified)
-│   └── extract_lessons.py              - (deprecated, now part of unified)
-├── transcripts/           - Raw conversation data
-│   ├── all_sessions.txt               - Full transcript (4.7MB)
-│   ├── all_sessions.json              - JSON format (5.9MB)
-│   ├── event_service.txt              - Event service only (4.3MB)
-│   └── user_prompts_only.txt          - Just user prompts (524KB)
-└── extracted_knowledge/   - Output files
-    ├── lessons_learned.md             - Final lessons (markdown)
-    ├── lessons_learned.json           - Final lessons (JSON)
-    └── lessons_raw.jsonl              - Raw before dedup
+LESSONS_BEDROCK_REGION=<aws region>
+LESSONS_BEDROCK_QUICK_PROFILE=<haiku inference profile arn>
+LESSONS_BEDROCK_DEDUPE_PROFILE=<haiku inference profile arn>
+LESSONS_BEDROCK_FULL_PROFILE=<sonnet inference profile arn>
 ```
 
-## Transcripts
+Discover profile ARNs with:
 
-**Coverage:** Sept 24 - Oct 24, 2025 (29 days)
-
-**Source:** All `.jsonl` files from `~/.claude/projects/*/`
-
-**Statistics:**
-
-- Total messages: 13,493
-- User messages: 1,892 (after filtering)
-- Projects covered: 9 (94% from ledger-rocket-go-event-service)
-
-## Categories
-
-Lessons are grouped into:
-
-- `infrastructure` - Services, endpoints, connections
-- `data_model` - Schemas, field names, structures
-- `authentication` - AWS SSO, credentials, profiles
-- `api_usage` - API calls, parameters, integration
-- `build_process` - Build tools, deployment, testing
-- `code_patterns` - General coding practices
-
-## Scripts Reference
-
-### extract_all_lessons.py ⭐
-
-Main unified pipeline. Processes user prompts → extracts lessons → deduplicates.
-
-**Key features:**
-
-- Parallel processing (20 workers)
-- Two-model approach (Haiku for speed, Sonnet for quality)
-- Logs progress for every prompt
-- Outputs clean markdown + JSON
-
-### extract_claude_sessions.py
-
-Converts `.jsonl` session logs to readable transcripts.
-
-```bash
-# Extract all sessions
-python scripts/extract_claude_sessions.py
-
-# Specific project
-python scripts/extract_claude_sessions.py ~/.claude/projects/PROJECT/*.jsonl \
-  --output-file output.txt
+```
+aws bedrock list-inference-profiles --region <region> \
+  --query 'inferenceProfileSummaries[].{name:inferenceProfileName,arn:inferenceProfileArn}'
 ```
 
-### extract_user_prompts.py
+Using the bare model ID (e.g. `anthropic.claude-haiku-4-5-20251001-v1:0`) without an inference
+profile will trigger Bedrock error `400 Invocation of model ... with on-demand throughput isn’t
+supported`.
 
-Extracts only user prompts from transcripts (filters out hooks, IDE events, interruptions).
+Settings ensure that required directories exist (`prompts/`, `transcripts/`, `extracted_knowledge/`,
+`config/`) and expose resolved `Path` objects for downstream adapters.
 
-```bash
-python scripts/extract_user_prompts.py transcripts/all_sessions.json \
-  transcripts/user_prompts_only.txt
+## Architecture Overview
+
+- **Ports** – protocols describing behaviour (`ClaudePort`, `PromptRepository`, `TranscriptSource`,
+  `LessonRepository`, `ClassificationRepository`, `StateRepository`, `StartFromRepository`).
+- **Adapters** – filesystem repositories, the Claude CLI adapter (with explicit `# noqa` justifications
+  for subprocess usage), and the Anthropic API adapter built on the official SDK.
+- **Domain Services** –
+  - `PromptClassifier`: concurrent classification with resilient JSON parsing.
+  - `LessonPipeline`: quick filter → transcript window → lesson extraction → dedupe → artefact writes.
+  - `TargetedLessonExtractor`: rebuild lessons directly from stored corrections for prompt iteration.
+- **Models** – Pydantic v2 models capture prompts, classifications, lessons, state snapshots, and run
+  summaries so invalid payloads fail fast.
+
+Everything is wired via `ToolkitContainer`, which resolves settings, instantiates adapters, and hands
+out fully-initialised services.
+
+## CLI Commands
+
+| Command | Purpose |
+| --- | --- |
+| `uv run lessons-tk extract-prompts --project-id <id>` | Pull `.claude` project logs, refresh transcript & prompt feeds (honours `config/start_from.txt` when `--since` omitted). |
+| `uv run lessons-tk extract-prompts transcripts/all_sessions.json` | Legacy path: rebuild prompts from a JSON export. |
+| `uv run lessons-tk projects` | List Claude Code projects detected under `~/.claude/projects`. |
+| `uv run lessons-tk classify --limit 200` | Identify corrections / frustration. Supports CLI or API transport transparently. |
+| `uv run lessons-tk run --quick-model claude-haiku-4-5 --dedupe-model claude-sonnet-4-5` | End-to-end pipeline producing JSONL/JSON/Markdown artefacts. |
+| `uv run lessons-tk extract-lessons --corrections-file extracted_knowledge/correction_classifications.json` | Rehydrate lessons from stored corrections after prompt edits. |
+| `uv run lessons-tk transcripts --output transcripts/all_sessions.txt` | Render Claude session JSONL files to text or prettified JSON. |
+
+Each subcommand accepts `--help`, and all path/model flags override the defaults shipped in
+`ToolkitSettings`.
+
+## Pipeline Flow
+
+```mermaid
+flowchart LR
+    A[Prompts
+    transcripts/user_prompts_only.txt] --> B[PromptClassifier]
+    B -->|Corrections JSON| C[LessonPipeline]
+    C --> D{{Quick filter + transcript window}}
+    D --> E{{Lesson extraction}}
+    E --> F{{Deduplicate}}
+    F --> G[lessons_raw.jsonl]
+    F --> H[lessons_learned.json]
+    F --> I[lessons_learned.md]
 ```
 
-## Extending
+The same services power API mode: swap `LESSONS_TRANSPORT=api` and supply an Anthropic API key to run
+without the local CLI.
 
-To add new categories, edit `CATEGORIES` list in `extract_all_lessons.py`:
+## Incremental Runs & State
 
-```python
-CATEGORIES = [
-    "infrastructure",
-    "data_model",
-    "authentication",
-    "api_usage",
-    "build_process",
-    "code_patterns",
-    "your_new_category"  # Add here
-]
-```
+- Persistent state lives at `extracted_knowledge/state.json` (typed via `StateSnapshot`).
+- `config/start_from.txt` can seed the initial cutoff timestamp; it is ignored by git for safety.
+- The classifier and pipeline both honour the resolved cutoff (CLI flag → state file → start-from).
+- Each pipeline run appends a `RunLogEntry` with prompt counts, lesson totals, and ISO8601 timestamps.
 
-## Troubleshooting
+## Prompt Templates
 
-**Script seems stuck:**
+Long-form prompt text now lives in `prompts/*.txt` (one file per template). The filesystem template
+repository caches content and keeps prompts out of the Python codebase, preserving Ruff line length
+requirements. Override the directory with `LESSONS_PROMPTS_DIR` if you package alternative prompts for
+CI or specialised runs.
 
-- Check logs - it prints progress for every prompt: `[45/200] - No lesson`
-- With 20 workers, each prompt takes ~1-2 seconds
+## Development & Tooling
 
-**Deduplication not working:**
+- `uv sync --extra dev` – install runtime + Ruff + Pyright + pytest.
+- `just check` – run format check, Ruff lint, Pyright (strict), and pytest.
+- `just fix` – apply Ruff formatting and autofixable rules before manual clean-up.
+- `uv run pyright --verifytypes lessons_toolkit` – optional API surface checks.
 
-- Check Sonnet 4.5 responses in output
-- Try adjusting DEDUPE_PROMPT aggressiveness
+Ruff runs with `select = ["ALL"]` (CPY001 intentionally ignored because large prompt files are stored
+externally). Pyright operates in strict mode via `pyrightconfig.json`.
 
-**Too many/few lessons:**
+## Packaging
 
-- Adjust classification threshold in QUICK_CLASSIFY_PROMPT
-- Adjust confirmation logic in FULL_EXTRACTION_PROMPT
+`pyproject.toml` relies on Hatchling; the build includes the `prompts/` directory so the package stays
+self-contained. Install via `uv pip install .` or publish using the standard Hatch workflow.

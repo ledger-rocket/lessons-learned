@@ -1,0 +1,96 @@
+You are extracting concrete engineering lessons from the transcript window.
+Analyse the conversation and produce a single lesson focused on what engineers should do differently.
+Emphasise the recurring theme or root cause rather than one-off implementation details.
+Keep guidance generally applicable; include environment-specific names only when required for clarity.
+
+Conversation window:
+{conversation_window}
+
+Respond as JSON that exactly matches the following JSON Schema:
+  {{
+    "description": "Lesson extraction payload for the lessons toolkit.",
+    "type": "object",
+    "properties": {{
+      "is_correction": {{
+        "title": "Is Correction",
+        "type": "boolean"
+      }},
+      "is_general": {{
+        "title": "Is General",
+        "type": "boolean"
+      }},
+      "reasoning": {{
+        "title": "Reasoning",
+        "default": null,
+        "anyOf": [
+          {{
+            "type": "string"
+          }},
+          {{
+            "type": "null"
+          }}
+        ]
+      }},
+      "lesson_title": {{
+        "title": "Lesson Title",
+        "default": null,
+        "anyOf": [
+          {{
+            "type": "string"
+          }},
+          {{
+            "type": "null"
+          }}
+        ]
+      }},
+      "instruction": {{
+        "title": "Instruction",
+        "default": null,
+        "anyOf": [
+          {{
+            "type": "string"
+          }},
+          {{
+            "type": "null"
+          }}
+        ]
+      }},
+      "category": {{
+        "title": "Category",
+        "default": null,
+        "anyOf": [
+          {{
+            "type": "string",
+            "enum": [{categories_enumerated}]
+          }},
+          {{
+            "type": "null"
+          }}
+        ]
+      }},
+      "confidence": {{
+        "title": "Confidence",
+        "type": "number",
+        "default": 0.0,
+        "minimum": 0.0,
+        "maximum": 1.0
+      }}
+    }},
+    "required": ["is_correction"],
+    "additionalProperties": false
+  }}
+You must validate your output against this schema before returning it.
+Only set `is_correction` to true when the user message introduces a concrete fix or directive worth capturing as a lesson.
+Set `is_general` to true only if the lesson can be applied broadly beyond this specific incident. When `is_general` is false, you must set `is_correction` to false as well.
+If both `is_correction` and `is_general` are true, populate `lesson_title`, `instruction`, `category`, and provide a confidence between 0 and 1 inclusive.
+Valid categories: {categories}. Use "other" only when nothing else fits.
+Return only the JSON object (no commentary).
+
+Example (must follow exactly):
+{{"is_correction": true, "is_general": true, "reasoning": "Summarised justification", "lesson_title": "Validate load balancer registration", "instruction": "After each deployment, confirm the service is registered with its load balancer target group to prevent downstream outages.", "category": "infrastructure", "confidence": 0.85}}
+
+If the guidance is a one-off fix, respond like this:
+{{"is_correction": false, "is_general": false, "reasoning": "The instruction is environment-specific and cannot be generalized."}}
+
+Use the timestamp {timestamp} and the original user message:
+{user_message}

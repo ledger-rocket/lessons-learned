@@ -2,16 +2,22 @@
 __pycache__/
 .pytest_cache/
 .venv/
+uv.lock
+.python-version
+.ruff_cache/
 
 # Local runtime configuration
 .DS_Store
+.env
 
 # Generated knowledge artifacts
 extracted_knowledge/
 
-# Large transcript exports (regenerate from source of truth)
-transcripts/*.txt
-transcripts/*.json
+# Transcript exports (bring-your-own data; entire directory ignored)
+transcripts/
+
+# Local run configuration
+config/
 
 # Virtual env tooling
 *.egg-info/
