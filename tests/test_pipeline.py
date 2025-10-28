@@ -4,9 +4,17 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from lessons_toolkit.container import parse_corrections
+if TYPE_CHECKING:
+    from pathlib import Path
+
+    from _pytest.monkeypatch import MonkeyPatch
+else:
+    MonkeyPatch = Any  # type: ignore[assignment]
+    Path = Any  # type: ignore[assignment]
+
+from lessons_toolkit.container import ToolkitContainer, parse_corrections
 from lessons_toolkit.models import (
     Category,
     CorrectionRecord,
@@ -27,9 +35,6 @@ from lessons_toolkit.services.lessons import (
 )
 from lessons_toolkit.settings import ToolkitSettings
 
-if TYPE_CHECKING:
-    from pathlib import Path
-
 
 class StubClaudePort:
     """Return canned responses used to drive deterministic tests."""
@@ -48,25 +53,27 @@ class StubClaudePort:
         del model, timeout
         if "Return YES if the user message likely indicates" in prompt:
             return "YES"
-        if "Provide JSON with fields is_correction" in prompt:
+        if '"Lesson extraction payload for the lessons toolkit."' in prompt:
             return json.dumps({
                 "is_correction": True,
+                "is_general": True,
                 "reasoning": "Bug confirmed",
                 "lesson_title": "Verify inputs first",
                 "instruction": "Validate user input before executing database writes.",
                 "category": "code_patterns",
                 "confidence": 0.8,
             })
-        if '"is_correction"' in prompt and '"lesson_title"' in prompt:
+        if '"Lesson extraction payload for targeted regeneration."' in prompt:
             return json.dumps({
                 "is_correction": True,
+                "is_general": True,
                 "reasoning": "Bug confirmed",
                 "lesson_title": "Verify inputs first",
                 "instruction": "Validate user input before executing database writes.",
                 "category": "code_patterns",
                 "confidence": 0.8,
             })
-        if "Return a JSON array with duplicates merged" in prompt:
+        if '"Deduplicated lesson list for a single category."' in prompt:
             return json.dumps([
                 {
                     "lesson_title": "Verify inputs first",
@@ -75,14 +82,6 @@ class StubClaudePort:
                     "confidence": 0.85,
                 },
             ])
-        if "User correction:" in prompt:
-            return json.dumps({
-                "reasoning": "Bug confirmed",
-                "lesson_title": "Verify inputs first",
-                "instruction": "Validate user input before executing database writes.",
-                "category": "code_patterns",
-                "confidence": 0.9,
-            })
         message = f"Unexpected prompt: {prompt[:60]}"
         raise AssertionError(message)
 
@@ -203,6 +202,49 @@ class MemoryLessonRepository(LessonRepository):
     def extracted_path(self) -> Path:
         """Return the extracted lessons artefact path."""
         return self._extracted_path
+
+
+def test_container_supports_bedrock_transport(
+    monkeypatch: MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """ToolkitContainer should construct the Bedrock adapter when requested."""
+    captured: dict[str, object] = {}
+
+    class StubBedrockAdapter:
+        def __init__(self, **kwargs: object) -> None:
+            captured.update(kwargs)
+            self.seen_prompts: list[str] = []
+
+        def invoke(self, prompt: str, *, model: str, timeout: int) -> str | None:
+            self.seen_prompts.append(prompt)
+            del model, timeout
+            return None
+
+    monkeypatch.setattr(
+        "lessons_toolkit.container.BedrockClaudeAdapter",
+        StubBedrockAdapter,
+    )
+
+    requested_read_timeout = 120
+    requested_connect_timeout = 5
+
+    settings = ToolkitSettings(
+        transport="bedrock",
+        base_dir=tmp_path,
+        bedrock_region="us-east-1",
+        bedrock_read_timeout=requested_read_timeout,
+        bedrock_connect_timeout=requested_connect_timeout,
+    )
+
+    container = ToolkitContainer(settings)
+
+    assert isinstance(container.claude, StubBedrockAdapter)
+    assert captured["region"] == "us-east-1"
+    assert captured["timeouts"] == (
+        requested_read_timeout,
+        requested_connect_timeout,
+    )
 
 
 def test_lesson_pipeline_builds_artifacts(tmp_path: Path) -> None:

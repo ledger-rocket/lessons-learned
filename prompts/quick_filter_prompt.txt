@@ -2,5 +2,16 @@ You are triaging code assistant conversations.
 Return YES if the user message likely indicates a bug, correction, or frustration; otherwise return NO.
 Respond with either YES or NO only.
 
+Your reply must satisfy this JSON Schema:
+  {{
+    "type": "string",
+    "enum": ["YES", "NO"],
+    "description": "Quick filter decision indicating if the prompt should enter the lessons pipeline."
+  }}
+Validate your answer against the schema before replying.
+
+Example (must follow exactly):
+YES
+
 Message:
 {user_message}

@@ -15,9 +15,14 @@ When introducing new adapters or orchestration logic, update `ToolkitSettings` a
 ## Build, Test, and Development Commands
 
 - `uv sync --extra dev` provisions runtime and tooling. Run everything with `uv run …`.
-- `uv run lessons-tk extract-prompts transcripts/all_sessions.json` refreshes the user prompt feed.
+- `uv run lessons-tk extract-prompts --project-id <id>` pulls Claude Code sessions directly from
+  `~/.claude/projects/<id>` and refreshes the prompt feed (`transcripts/user_prompts_only.txt`). When
+  `--since` is omitted, it falls back to `config/start_from.txt`. Use `uv run lessons-tk projects`
+  to list available project identifiers.
+- `uv run lessons-tk extract-prompts transcripts/all_sessions.json` rebuilds the prompt feed from an
+  existing JSON export if you prefer the old workflow.
 - `uv run lessons-tk classify` and `uv run lessons-tk run` execute the concurrent pipeline using
-  whichever transport `ToolkitSettings` resolves (`LESSONS_TRANSPORT=cli|api`).
+  whichever transport `ToolkitSettings` resolves (`LESSONS_TRANSPORT=cli|api|bedrock`).
 - `uv run lessons-tk extract-lessons --corrections-file extracted_knowledge/correction_classifications.json`
   regenerates lessons directly from stored classifications for prompt experiments.
 - All CLI invocations honour `ToolkitSettings`, so override environment variables (e.g.,

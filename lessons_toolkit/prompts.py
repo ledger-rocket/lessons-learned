@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from operator import itemgetter
 from pathlib import Path
 from typing import Any, cast
 
@@ -55,6 +56,35 @@ def extract_user_prompts(json_file: Path) -> list[PromptRecord]:
             prompts.append({"timestamp": timestamp, "content": content})
             seen_timestamps.add(timestamp)
 
+    return prompts
+
+
+def extract_user_prompts_from_messages(messages: list[dict[str, Any]]) -> list[PromptRecord]:
+    """Build prompt records from transcript message dictionaries.
+
+    Returns:
+        A chronologically ordered list of prompt records.
+
+    """
+    prompts: list[PromptRecord] = []
+    seen_timestamps: set[str] = set()
+
+    for message in messages:
+        if message.get("role") != "user":
+            continue
+
+        timestamp_str = message.get("timestamp_str")
+        if not timestamp_str or timestamp_str in seen_timestamps:
+            continue
+
+        content = message.get("content")
+        if not isinstance(content, str) or not is_actual_user_prompt(content):
+            continue
+
+        prompts.append({"timestamp": timestamp_str, "content": content})
+        seen_timestamps.add(timestamp_str)
+
+    prompts.sort(key=itemgetter("timestamp"))
     return prompts
 
 

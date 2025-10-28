@@ -12,10 +12,20 @@ from typing import Any, Protocol, cast
 
 from . import __version__
 from .container import ToolkitContainer, parse_corrections
-from .prompts import extract_user_prompts, write_prompts_text
+from .prompts import (
+    extract_user_prompts,
+    extract_user_prompts_from_messages,
+    write_prompts_text,
+)
 from .settings import ToolkitSettings
 from .state import resolve_cutoff, update_state_with_summary
-from .transcripts import collate_messages, find_session_files, format_as_json, format_as_text
+from .transcripts import (
+    collate_messages,
+    find_session_files,
+    format_as_json,
+    format_as_text,
+    list_projects,
+)
 
 logger = logging.getLogger(__name__)
 DEFAULTS = ToolkitSettings()
@@ -50,8 +60,75 @@ def _build_settings(**overrides: object) -> ToolkitSettings:
 
 
 def cmd_extract_prompts(args: argparse.Namespace) -> None:
-    """Extract user prompts from a transcript export."""
-    prompts = extract_user_prompts(args.input)
+    """Extract user prompts from JSON exports or Claude project logs.
+
+    Raises:
+        SystemExit: If Claude session data cannot be located or inputs are invalid.
+
+    """
+    if args.input is not None:
+        prompts = extract_user_prompts(args.input)
+        output = args.output.resolve()
+        output.parent.mkdir(parents=True, exist_ok=True)
+        write_prompts_text(prompts, output)
+        logger.info("Extracted %s prompts → %s", len(prompts), output)
+        return
+
+    project_id = args.project_id or DEFAULTS.claude_project_id
+    if not project_id:
+        projects = list_projects(args.sessions_dir or DEFAULTS.claude_projects_dir)
+        available = ", ".join(projects) if projects else "<none found>"
+        message = (
+            "Provide --project-id or set LESSONS_CLAUDE_PROJECT_ID to target Claude logs. "
+            f"Available projects: {available}"
+        )
+        raise SystemExit(message)
+
+    base_dir = args.sessions_dir or DEFAULTS.claude_projects_dir
+    session_files = find_session_files(base_dir, project_id=project_id)
+    if not session_files:
+        message = (
+            f"No Claude session files found for project '{project_id}' in {base_dir}. "
+            "Launch Claude Code at least once to populate logs."
+        )
+        raise SystemExit(message)
+
+    since_text = args.since
+    if not since_text:
+        start_from_file = DEFAULTS.start_from_file
+        if start_from_file.exists():
+            loaded = start_from_file.read_text(encoding="utf-8").strip()
+            if loaded:
+                since_text = loaded
+                logger.info(
+                    "Using config/start_from.txt cutoff for prompt extraction: %s",
+                    since_text,
+                )
+
+    since_dt: datetime | None = None
+    if since_text:
+        try:
+            since_dt = datetime.fromisoformat(since_text.replace("Z", "+00:00"))
+        except ValueError as exc:  # pragma: no cover - user input validation
+            message = f"Invalid --since timestamp: {since_text}"
+            raise SystemExit(message) from exc
+
+    messages = collate_messages(session_files, session_id=args.session_id, since=since_dt)
+    if not messages:
+        logger.info("No Claude messages matched the provided filters; writing empty outputs.")
+
+    prompts = extract_user_prompts_from_messages(messages)
+
+    transcript_output = (args.transcript_output or DEFAULTS.transcript_file).resolve()
+    transcript_output.parent.mkdir(parents=True, exist_ok=True)
+    transcript_output.write_text(format_as_text(messages), encoding="utf-8")
+    logger.info("Transcript written to %s", transcript_output)
+
+    json_output = (args.json_output or DEFAULTS.transcript_json_file).resolve()
+    json_output.parent.mkdir(parents=True, exist_ok=True)
+    json_output.write_text(format_as_json(messages), encoding="utf-8")
+    logger.info("Transcript JSON written to %s", json_output)
+
     output = args.output.resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
     write_prompts_text(prompts, output)
@@ -205,6 +282,18 @@ def cmd_sessions(args: argparse.Namespace) -> None:
         sys.stdout.write(f"{output_text}\n")
 
 
+def cmd_list_projects(args: argparse.Namespace) -> None:
+    """List Claude Code projects discovered on disk."""
+    base_dir = args.sessions_dir or DEFAULTS.claude_projects_dir
+    projects = list_projects(base_dir)
+    if not projects:
+        logger.info("No Claude projects found under %s", base_dir)
+        return
+
+    for project in projects:
+        sys.stdout.write(f"{project}\n")
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Construct the argparse CLI parser.
 
@@ -222,6 +311,7 @@ def build_parser() -> argparse.ArgumentParser:
     _configure_run_subparser(subparsers)
     _configure_extract_lessons_subparser(subparsers)
     _configure_transcripts_subparser(subparsers)
+    _configure_projects_subparser(subparsers)
 
     return parser
 
@@ -232,14 +322,54 @@ def _configure_extract_prompts_subparser(
     """Register the extract-prompts subcommand."""
     prompts_parser = subparsers.add_parser(
         "extract-prompts",
-        help="Extract user prompts from transcript JSON",
+        help=(
+            "Extract user prompts from a Claude transcript JSON export or \n"
+            "directly from the local Claude project logs"
+        ),
     )
-    prompts_parser.add_argument("input", type=Path, help="Transcript JSON file (all_sessions.json)")
+    prompts_parser.add_argument(
+        "input",
+        type=Path,
+        nargs="?",
+        help="Transcript JSON file (all_sessions.json)",
+    )
     prompts_parser.add_argument(
         "--output",
         type=Path,
         default=DEFAULTS.prompts_file,
         help="Output text file",
+    )
+    prompts_parser.add_argument(
+        "--sessions-dir",
+        type=Path,
+        default=DEFAULTS.claude_projects_dir,
+        help="Directory containing Claude project session logs",
+    )
+    prompts_parser.add_argument(
+        "--project-id",
+        default=DEFAULTS.claude_project_id,
+        help="Claude project identifier (defaults to LESSONS_CLAUDE_PROJECT_ID)",
+    )
+    prompts_parser.add_argument("--session-id", help="Specific session identifier to filter")
+    prompts_parser.add_argument(
+        "--since",
+        help="Only include messages at or after this ISO-8601 timestamp",
+    )
+    prompts_parser.add_argument(
+        "--transcript-output",
+        type=Path,
+        help=(
+            "Where to write the flattened text transcript "
+            "(defaults to ToolkitSettings.transcript_file)"
+        ),
+    )
+    prompts_parser.add_argument(
+        "--json-output",
+        type=Path,
+        help=(
+            "Where to write the flattened JSON transcript "
+            "(defaults to ToolkitSettings.transcript_json_file)"
+        ),
     )
     prompts_parser.set_defaults(func=cmd_extract_prompts)
 
@@ -317,15 +447,30 @@ def _configure_transcripts_subparser(
     sessions_parser.add_argument(
         "--sessions-dir",
         type=Path,
-        default=DEFAULTS.transcript_file.parent,
+        default=DEFAULTS.claude_projects_dir,
     )
-    sessions_parser.add_argument("--project-id")
+    sessions_parser.add_argument("--project-id", default=DEFAULTS.claude_project_id)
     sessions_parser.add_argument("--session-id")
     sessions_parser.add_argument("--since")
     sessions_parser.add_argument("--format", choices=["text", "json"], default="text")
     sessions_parser.add_argument("--output", type=Path)
     sessions_parser.add_argument("files", nargs="*", type=Path)
     sessions_parser.set_defaults(func=cmd_sessions)
+
+
+def _configure_projects_subparser(subparsers: SubparserRegistry) -> None:
+    """Register the projects listing subcommand."""
+    projects_parser = subparsers.add_parser(
+        "projects",
+        help="List Claude Code projects discovered in ~/.claude/projects",
+    )
+    projects_parser.add_argument(
+        "--sessions-dir",
+        type=Path,
+        default=DEFAULTS.claude_projects_dir,
+        help="Claude projects directory (defaults to ~/.claude/projects)",
+    )
+    projects_parser.set_defaults(func=cmd_list_projects)
 
 
 def main(argv: list[str] | None = None) -> None:

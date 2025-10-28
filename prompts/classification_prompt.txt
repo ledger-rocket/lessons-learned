@@ -1,6 +1,49 @@
 You are reviewing user messages from an internal code assistant.
 Determine if the message describes a correction or user frustration.
-Respond as JSON with keys reason, is_correction, is_frustrated, confidence.
+Respond as JSON that exactly matches the following JSON Schema:
+  {{
+    "description": "Structured response from Claude for a classification prompt.",
+    "properties": {{
+      "reason": {{
+        "anyOf": [
+          {{
+            "type": "string"
+          }},
+          {{
+            "type": "null"
+          }}
+        ],
+        "default": null,
+        "title": "Reason"
+      }},
+      "is_correction": {{
+        "default": false,
+        "title": "Is Correction",
+        "type": "boolean"
+      }},
+      "is_frustrated": {{
+        "default": false,
+        "title": "Is Frustrated",
+        "type": "boolean"
+      }},
+      "confidence": {{
+        "default": 0.0,
+        "maximum": 1.0,
+        "minimum": 0.0,
+        "title": "Confidence",
+        "type": "number"
+      }}
+    }},
+    "title": "ClassificationPayload",
+    "type": "object"
+  }}
+You must validate your output against this schema before returning it.
+If validation would fail, correct the response before sending it.
+Return only the JSON object (no commentary).
+
+Example (must follow exactly):
+{{"reason": "Summarised concern", "is_correction": true, "is_frustrated": false, "confidence": 0.8}}
+
 
 User message:
 {user_message}

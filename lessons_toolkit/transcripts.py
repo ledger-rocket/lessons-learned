@@ -165,6 +165,22 @@ def find_session_files(
     return list(base_path.glob("*/*.jsonl"))
 
 
+def list_projects(base_path: Path | None = None) -> list[str]:
+    """Return available Claude Code project identifiers under ``base_path``.
+
+    Returns:
+        Sorted list of project directory names. Empty when no sessions are found.
+
+    """
+    if base_path is None:
+        base_path = Path.home() / ".claude" / "projects"
+
+    if not base_path.exists():
+        return []
+
+    return sorted({path.parent.name for path in base_path.glob("*/*.jsonl")})
+
+
 def collate_messages(
     files: Iterable[Path],
     *,

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import time
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import TYPE_CHECKING
 
@@ -78,6 +80,7 @@ class PromptClassifier:
 
         logger.info("Classifying %s prompts (since=%s, limit=%s)", len(prompts), since, limit)
         template = self._templates.load(CLASSIFICATION_TEMPLATE)
+        started_at = time.perf_counter()
 
         results = self._run_concurrent(prompts, template)
         corrections = [result for result in results if result.is_correction or result.is_frustrated]
@@ -85,10 +88,31 @@ class PromptClassifier:
         self._output.write_corrections(corrections)
         self._output.write_debug_sample(results)
 
+        total_time = time.perf_counter() - started_at
         successful = sum(1 for result in results if result.success)
         failed = len(results) - successful
         logger.info("Classification complete: %s success / %s failed", successful, failed)
         logger.info("Corrections/frustrations detected: %s", len(corrections))
+        if total_time:
+            throughput = len(results) / total_time
+            logger.info(
+                "Classification runtime: %.2fs (%.2f prompts/second)",
+                total_time,
+                throughput,
+            )
+
+        category_counts: Counter[str] = Counter()
+        for result in results:
+            if result.success and result.classification:
+                category = (
+                    "correction"
+                    if result.is_correction
+                    else ("frustrated" if result.is_frustrated else "neutral")
+                )
+                category_counts[category] += 1
+        if category_counts:
+            breakdown: dict[str, int] = dict(sorted(category_counts.items()))
+            logger.info("Classification breakdown: %s", breakdown)
 
         return ClassificationSummary(
             total=len(results),
@@ -110,41 +134,97 @@ class PromptClassifier:
                 executor.submit(self._classify_single, prompt, template): prompt
                 for prompt in prompts
             }
-            results.extend(future.result() for future in as_completed(future_map))
+            total = len(future_map)
+            for completed, future in enumerate(as_completed(future_map), start=1):
+                result = future.result()
+                results.append(result)
+                if result.success and result.classification:
+                    logger.debug(
+                        "Classified prompt %s (%d/%d): correction=%s frustrated=%s confidence=%.2f",
+                        result.prompt.iso_timestamp,
+                        completed,
+                        total,
+                        result.is_correction,
+                        result.is_frustrated,
+                        result.classification.confidence,
+                    )
+                else:
+                    logger.debug(
+                        "Classification failed for prompt %s (%d/%d): %s",
+                        result.prompt.iso_timestamp,
+                        completed,
+                        total,
+                        result.error or "unknown error",
+                    )
         results.sort(key=lambda result: result.prompt.timestamp)
         return results
 
     def _classify_single(self, prompt: PromptRecord, template: str) -> ClassificationResult:
-        payload = template.format(user_message=prompt.content)
-        response = self._claude.invoke(
-            payload,
-            model=self._settings.quick_model,
-            timeout=self._settings.quick_timeout,
-        )
-
-        if response is None:
-            return ClassificationResult(
-                prompt=prompt,
-                success=False,
-                error="Claude returned no output",
+        max_attempts = 2
+        last_error = "Claude returned no output"
+        for attempt in range(1, max_attempts + 1):
+            payload = template.format(user_message=prompt.content)
+            response = self._claude.invoke(
+                payload,
+                model=self._settings.quick_model,
+                timeout=self._settings.quick_timeout,
             )
 
-        parsed_raw = parse_response_json(response)
-        if not isinstance(parsed_raw, dict):
+            if response is None:
+                logger.warning(
+                    "Classification attempt %s/%s returned no output for %s",
+                    attempt,
+                    max_attempts,
+                    prompt.iso_timestamp,
+                )
+                last_error = "Claude returned no output"
+                continue
+
+            parsed_raw = parse_response_json(response)
+            if not isinstance(parsed_raw, dict):
+                last_error = "Claude response did not contain a JSON object"
+                logger.warning(
+                    "Classification attempt %s/%s produced non-dict response for %s: %s",
+                    attempt,
+                    max_attempts,
+                    prompt.iso_timestamp,
+                    response,
+                )
+                continue
+
+            try:
+                classification = ClassificationPayload.model_validate(parsed_raw)
+            except ValueError as exc:
+                last_error = str(exc)
+                logger.warning(
+                    "Classification validation failed for %s (attempt %s/%s): %s -- raw=%s",
+                    prompt.iso_timestamp,
+                    attempt,
+                    max_attempts,
+                    exc,
+                    parsed_raw,
+                )
+                continue
+
+            logger.debug(
+                "Prompt %s classified as correction=%s frustrated=%s confidence=%.2f"
+                " (attempt %s/%s)",
+                prompt.iso_timestamp,
+                classification.is_correction,
+                classification.is_frustrated,
+                classification.confidence,
+                attempt,
+                max_attempts,
+            )
+
             return ClassificationResult(
                 prompt=prompt,
-                success=False,
-                error="Claude response did not contain a JSON object",
+                success=True,
+                classification=classification,
             )
-        parsed = parsed_raw
-
-        try:
-            classification = ClassificationPayload.model_validate(parsed)
-        except ValueError as exc:
-            return ClassificationResult(prompt=prompt, success=False, error=str(exc))
 
         return ClassificationResult(
             prompt=prompt,
-            success=True,
-            classification=classification,
+            success=False,
+            error=last_error,
         )

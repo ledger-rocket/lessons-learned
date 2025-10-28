@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from .anthropic_api import AnthropicClaudeAdapter
+from .bedrock import BedrockClaudeAdapter, BedrockCredentials
 from .claude_cli import ClaudeCliAdapter
 from .filesystem import (
     FilesystemClassificationRepository,
@@ -16,6 +17,8 @@ from .filesystem import (
 
 __all__ = [
     "AnthropicClaudeAdapter",
+    "BedrockClaudeAdapter",
+    "BedrockCredentials",
     "ClaudeCliAdapter",
     "FilesystemClassificationRepository",
     "FilesystemLessonRepository",

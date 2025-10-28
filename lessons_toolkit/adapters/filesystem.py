@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import threading
 import typing
+from datetime import datetime
 from pathlib import Path
 
 from lessons_toolkit.models import (
@@ -182,8 +183,7 @@ class FilesystemTranscriptSource(TranscriptSource):
         if not self._lines:
             return None
 
-        timestamp_token = timestamp.isoformat().replace("+00:00", "Z")
-        line_num = self._find_line(timestamp_token)
+        line_num = self._find_line(timestamp)
         if line_num == -1:
             return None
 
@@ -191,8 +191,8 @@ class FilesystemTranscriptSource(TranscriptSource):
         end = min(len(self._lines), line_num + after + 1)
         return "".join(self._lines[start:end])
 
-    def _find_line(self, token: str) -> int:
-        """Locate the line index containing ``token``.
+    def _find_line(self, target: datetime) -> int:
+        """Locate the line index matching ``target`` timestamp.
 
         Returns:
             The line index if found, otherwise ``-1``.
@@ -205,7 +205,17 @@ class FilesystemTranscriptSource(TranscriptSource):
             message = "Transcript lines not loaded; call fetch_window first"
             raise RuntimeError(message)
         for index, line in enumerate(self._lines):
-            if token in line:
+            if not line.startswith("["):
+                continue
+            closing_bracket = line.find("]")
+            if closing_bracket == -1:
+                continue
+            candidate = line[1:closing_bracket]
+            try:
+                candidate_ts = parse_timestamp(candidate)
+            except ValueError:
+                continue
+            if candidate_ts == target:
                 return index
         return -1
 

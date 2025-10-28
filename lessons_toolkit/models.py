@@ -103,6 +103,7 @@ class LessonExtractionPayload(BaseModel):
     """Raw response from lesson extraction prompt."""
 
     is_correction: bool = False
+    is_general: bool = False
     reasoning: str | None = None
     lesson_title: str | None = None
     instruction: str | None = None

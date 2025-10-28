@@ -15,18 +15,27 @@ if TYPE_CHECKING:
 class ToolkitSettings(BaseSettings):
     """Central configuration object for the toolkit."""
 
-    transport: Literal["cli", "api"] = "cli"
+    transport: Literal["cli", "api", "bedrock"] = "cli"
 
     quick_model: str = "claude-haiku-4-5"
     full_model: str = "claude-haiku-4-5"
     dedupe_model: str = "claude-sonnet-4-5"
+    bedrock_quick_model: str = "anthropic.claude-haiku-4-5-20251001-v1:0"
+    bedrock_full_model: str = "anthropic.claude-sonnet-4-5-20250929-v1:0"
+    bedrock_dedupe_model: str = "anthropic.claude-haiku-4-5-20251001-v1:0"
+    bedrock_quick_profile: str | None = None
+    bedrock_full_profile: str | None = None
+    bedrock_dedupe_profile: str | None = None
 
     invoke_timeout: int = 60
     quick_timeout: int = 20
     full_timeout: int = 30
     dedupe_timeout: int = 60
 
-    max_workers: int = 20
+    max_dedupe_rounds: int = 10
+    dedupe_chunk_size: int = 25
+
+    max_workers: int = 50
     context_before: int = 20
     context_after: int = 10
 
@@ -36,6 +45,9 @@ class ToolkitSettings(BaseSettings):
         default_factory=lambda: Path("transcripts") / "user_prompts_only.txt",
     )
     transcript_file: Path = Field(default_factory=lambda: Path("transcripts") / "all_sessions.txt")
+    transcript_json_file: Path = Field(
+        default_factory=lambda: Path("transcripts") / "all_sessions.json",
+    )
     corrections_file: Path = Field(
         default_factory=lambda: Path("extracted_knowledge") / "correction_classifications.json",
     )
@@ -69,10 +81,27 @@ class ToolkitSettings(BaseSettings):
     anthropic_api_key: str | None = Field(default=None, validation_alias="anthropic_api_key")
     anthropic_base_url: str | None = Field(default=None, validation_alias="anthropic_base_url")
 
+    bedrock_region: str | None = Field(default=None)
+    bedrock_profile: str | None = Field(default=None)
+    bedrock_access_key_id: str | None = Field(default=None)
+    bedrock_secret_access_key: str | None = Field(default=None)
+    bedrock_session_token: str | None = Field(default=None)
+    bedrock_read_timeout: int = Field(default=90)
+    bedrock_connect_timeout: int = Field(default=10)
+    bedrock_http_pool_size: int = Field(default=50)
+    bedrock_api_token: str | None = Field(default=None)
+    claude_projects_dir: Path = Field(
+        default_factory=lambda: Path.home() / ".claude" / "projects",
+        validation_alias="claude_projects_dir",
+    )
+    claude_project_id: str | None = Field(default=None, validation_alias="claude_project_id")
+
     model_config = SettingsConfigDict(
         env_prefix="LESSONS_",
         env_nested_delimiter="__",
         extra="ignore",
+        env_file=".env",
+        env_file_encoding="utf-8",
     )
 
     def model_post_init(self, __context: object, /) -> None:
@@ -88,6 +117,7 @@ class ToolkitSettings(BaseSettings):
             "prompts_dir",
             "prompts_file",
             "transcript_file",
+            "transcript_json_file",
             "corrections_file",
             "classification_debug_file",
             "lessons_raw_file",
@@ -96,6 +126,7 @@ class ToolkitSettings(BaseSettings):
             "lessons_extracted_file",
             "state_file",
             "start_from_file",
+            "claude_projects_dir",
         )
 
     def ensure_directories(self) -> None:
@@ -104,6 +135,7 @@ class ToolkitSettings(BaseSettings):
             self.prompts_dir,
             self.prompts_file.parent,
             self.transcript_file.parent,
+            self.transcript_json_file.parent,
             self.corrections_file.parent,
             self.classification_debug_file.parent,
             self.lessons_raw_file.parent,

@@ -1,6 +1,57 @@
 You are consolidating overlapping lessons for the {category} category.
 A JSON array of candidate lessons is provided below.
-Return a JSON array with duplicates merged, preserving lesson_title, instruction, category, and confidence.
+Identify repeating themes, merge near-duplicates into a single generalized lesson, and keep only distinct guidance.
+Prefer concise titles and instructions that describe the broader pattern rather than environment-specific minutiae.
+When the input is already deduplicated, return it exactly as provided.
+When merging entries, carry forward the highest confidence value and ensure the surviving instruction covers all relevant details.
+
+Respond as JSON that exactly matches the following JSON Schema:
+  {{
+    "description": "Deduplicated lesson list for a single category.",
+    "type": "array",
+    "items": {{
+      "type": "object",
+      "properties": {{
+        "lesson_title": {{
+          "title": "Lesson Title",
+          "type": "string"
+        }},
+        "instruction": {{
+          "title": "Instruction",
+          "type": "string"
+        }},
+        "category": {{
+          "title": "Category",
+          "type": "string",
+          "enum": ["{category}"]
+        }},
+        "confidence": {{
+          "title": "Confidence",
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 1.0
+        }}
+      }},
+      "required": ["lesson_title", "instruction", "category", "confidence"],
+      "additionalProperties": false
+    }}
+  }}
+You must validate your output against this schema before returning it.
+Return only the JSON array (no commentary).
+
+Example (must follow exactly):
+[{{"lesson_title": "Summarised lesson", "instruction": "Do the thing", "category": "{category}", "confidence": 0.9}}]
+
+Example duplicate merge:
+Input:
+[
+  {{"lesson_title": "Verify load balancer targets", "instruction": "Confirm the load balancer registers new ECS tasks automatically.", "category": "{category}", "confidence": 0.9}},
+  {{"lesson_title": "Ensure ALB registration after deploys", "instruction": "After deploys, confirm ECS tasks appear in the load balancer target group.", "category": "{category}", "confidence": 0.8}}
+]
+Output:
+[
+  {{"lesson_title": "Validate load balancer target registration", "instruction": "After each deploy, confirm new tasks register with the load balancer target group so traffic flows correctly.", "category": "{category}", "confidence": 0.9}}
+]
 
 Input lessons:
 {lessons_json}

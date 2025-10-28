@@ -13,9 +13,11 @@ authors = [
   {name = "Ledger Rocket"}
 ]
 dependencies = [
-  "anthropic>=0.39.0",
-  "pydantic>=2.8.0",
-  "pydantic-settings>=2.4.0",
+  "anthropic>=0.71.0",
+  "boto3>=1.40.59",
+  "requests>=2.32.3",
+  "pydantic>=2.12.3",
+  "pydantic-settings>=2.11.0",
 ]
 
 

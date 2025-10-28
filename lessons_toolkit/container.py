@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING
 
 from .adapters import (
     AnthropicClaudeAdapter,
+    BedrockClaudeAdapter,
+    BedrockCredentials,
     ClaudeCliAdapter,
     FilesystemClassificationRepository,
     FilesystemLessonRepository,
@@ -70,18 +72,49 @@ class ToolkitContainer:
         Returns:
             The instantiated Claude port implementation.
 
+        Raises:
+            ValueError: If the configured transport is not recognised.
+
         """
         if self.settings.transport == "cli":
             return ClaudeCliAdapter(
                 binary=self.settings.claude_cli_bin,
                 flags=self.settings.claude_cli_flags,
             )
-        return AnthropicClaudeAdapter(
-            api_key=self.settings.anthropic_api_key or "",
-            base_url=str(self.settings.anthropic_base_url)
-            if self.settings.anthropic_base_url
-            else None,
-        )
+        if self.settings.transport == "api":
+            return AnthropicClaudeAdapter(
+                api_key=self.settings.anthropic_api_key or "",
+                base_url=str(self.settings.anthropic_base_url)
+                if self.settings.anthropic_base_url
+                else None,
+            )
+        if self.settings.transport == "bedrock":
+            profile_aliases: dict[str, str] = {}
+
+            if self.settings.bedrock_quick_profile:
+                profile_aliases[self.settings.quick_model] = self.settings.bedrock_quick_profile
+            if self.settings.bedrock_full_profile:
+                profile_aliases[self.settings.full_model] = self.settings.bedrock_full_profile
+            if self.settings.bedrock_dedupe_profile:
+                profile_aliases[self.settings.dedupe_model] = self.settings.bedrock_dedupe_profile
+            return BedrockClaudeAdapter(
+                region=self.settings.bedrock_region,
+                credentials=BedrockCredentials(
+                    profile=self.settings.bedrock_profile,
+                    access_key_id=self.settings.bedrock_access_key_id,
+                    secret_access_key=self.settings.bedrock_secret_access_key,
+                    session_token=self.settings.bedrock_session_token,
+                ),
+                timeouts=(
+                    self.settings.bedrock_read_timeout,
+                    self.settings.bedrock_connect_timeout,
+                ),
+                api_token=self.settings.bedrock_api_token,
+                http_pool_size=self.settings.bedrock_http_pool_size,
+                model_aliases=profile_aliases,
+            )
+        message = f"Unsupported transport: {self.settings.transport}"
+        raise ValueError(message)
 
     @property
     def prompts(self) -> PromptRepository:
