@@ -10,7 +10,7 @@ from unittest.mock import Mock
 from botocore.exceptions import ClientError
 from requests.adapters import HTTPAdapter
 
-from lessons_toolkit.adapters.bedrock import BedrockClaudeAdapter
+from lessons_toolkit.adapters.bedrock import BedrockAdapterConfig, BedrockClaudeAdapter
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -41,7 +41,7 @@ def test_bedrock_adapter_returns_expected_text() -> None:
     client = Mock()
     client.invoke_model.return_value = {"body": DummyBody(response)}
 
-    adapter = BedrockClaudeAdapter(client=cast("object", client))
+    adapter = BedrockClaudeAdapter(config=BedrockAdapterConfig(client=cast("object", client)))
 
     result = adapter.invoke("Ping", model="anthropic.claude-test", timeout=20)
 
@@ -59,7 +59,7 @@ def test_bedrock_adapter_handles_client_error() -> None:
         "InvokeModel",
     )
 
-    adapter = BedrockClaudeAdapter(client=cast("object", client))
+    adapter = BedrockClaudeAdapter(config=BedrockAdapterConfig(client=cast("object", client)))
 
     assert adapter.invoke("Ping", model="anthropic.claude-test", timeout=20) is None
 
@@ -69,7 +69,7 @@ def test_bedrock_adapter_rejects_missing_body(caplog: LogCaptureFixture) -> None
     client = Mock()
     client.invoke_model.return_value = {}
 
-    adapter = BedrockClaudeAdapter(client=cast("object", client))
+    adapter = BedrockClaudeAdapter(config=BedrockAdapterConfig(client=cast("object", client)))
 
     with caplog.at_level("WARNING"):
         result = adapter.invoke("Ping", model="anthropic.claude-test", timeout=20)
@@ -126,7 +126,7 @@ def test_bedrock_adapter_token_flow(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setattr("requests.Session", make_session)
 
     token = "test-token"  # noqa: S105 - test fixture token
-    adapter = BedrockClaudeAdapter(region="us-east-1", api_token=token)
+    adapter = BedrockClaudeAdapter(config=BedrockAdapterConfig(region="us-east-1", api_token=token))
 
     result = adapter.invoke("Ping", model="anthropic.claude-test", timeout=15)
 

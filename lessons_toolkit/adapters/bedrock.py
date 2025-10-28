@@ -58,37 +58,41 @@ class BedrockCredentials:
     profile: str | None = None
 
 
+@dataclass(frozen=True)
+class BedrockAdapterConfig:
+    """Configuration options for `BedrockClaudeAdapter`."""
+
+    region: str | None = None
+    credentials: BedrockCredentials | None = None
+    client: BedrockRuntimeClient | None = None
+    timeouts: tuple[int, int] | None = None
+    api_token: str | None = None
+    http_pool_size: int | None = None
+    model_aliases: dict[str, str] | None = None
+
+
 class BedrockClaudeAdapter(ClaudePort):
     """Invoke Claude models hosted on AWS Bedrock."""
 
-    def __init__(  # noqa: PLR0913
-        self,
-        *,
-        region: str | None = None,
-        credentials: BedrockCredentials | None = None,
-        client: BedrockRuntimeClient | None = None,
-        timeouts: tuple[int, int] | None = None,
-        api_token: str | None = None,
-        http_pool_size: int | None = None,
-        model_aliases: dict[str, str] | None = None,
-    ) -> None:
+    def __init__(self, *, config: BedrockAdapterConfig | None = None) -> None:
         """Initialise a Bedrock client session.
 
         Args:
-            region: AWS region hosting Bedrock. Falls back to environment when omitted.
-            credentials: Explicit Bedrock credential bundle; defaults to environment discovery.
-            client: Preconfigured Bedrock runtime client (primarily for testing).
-            timeouts: Tuple of (read_timeout, connect_timeout). Defaults to (90, 10).
-            api_token: Optional Bedrock API token enabling direct HTTP invocation
-                without AWS credentials.
-            http_pool_size: Max pooled connections for HTTP token mode (defaults to 50).
-            model_aliases: Optional mapping of logical model names to the identifiers required
-                by the Bedrock endpoint (typically inference profile ARNs).
+            config: Optional configuration bundle. When omitted, sensible defaults are used.
 
         Raises:
-            ValueError: If ``api_token`` is provided without an accompanying ``region``.
+            ValueError: If an API token is supplied without an accompanying region.
 
         """
+        cfg = config or BedrockAdapterConfig()
+        region = cfg.region
+        credentials = cfg.credentials
+        client = cfg.client
+        timeouts = cfg.timeouts
+        api_token = cfg.api_token
+        http_pool_size = cfg.http_pool_size
+        model_aliases = cfg.model_aliases
+
         if api_token and not region:
             message = "bedrock_api_token requires bedrock_region to be configured"
             raise ValueError(message)

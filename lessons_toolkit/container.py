@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 from .adapters import (
     AnthropicClaudeAdapter,
+    BedrockAdapterConfig,
     BedrockClaudeAdapter,
     BedrockCredentials,
     ClaudeCliAdapter,
@@ -97,7 +98,8 @@ class ToolkitContainer:
                 profile_aliases[self.settings.full_model] = self.settings.bedrock_full_profile
             if self.settings.bedrock_dedupe_profile:
                 profile_aliases[self.settings.dedupe_model] = self.settings.bedrock_dedupe_profile
-            return BedrockClaudeAdapter(
+
+            config = BedrockAdapterConfig(
                 region=self.settings.bedrock_region,
                 credentials=BedrockCredentials(
                     profile=self.settings.bedrock_profile,
@@ -111,8 +113,9 @@ class ToolkitContainer:
                 ),
                 api_token=self.settings.bedrock_api_token,
                 http_pool_size=self.settings.bedrock_http_pool_size,
-                model_aliases=profile_aliases,
+                model_aliases=profile_aliases or None,
             )
+            return BedrockClaudeAdapter(config=config)
         message = f"Unsupported transport: {self.settings.transport}"
         raise ValueError(message)
 

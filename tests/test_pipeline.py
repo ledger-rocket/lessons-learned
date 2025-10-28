@@ -14,6 +14,7 @@ else:
     MonkeyPatch = Any  # type: ignore[assignment]
     Path = Any  # type: ignore[assignment]
 
+from lessons_toolkit.adapters.bedrock import BedrockAdapterConfig
 from lessons_toolkit.container import ToolkitContainer, parse_corrections
 from lessons_toolkit.models import (
     Category,
@@ -212,8 +213,8 @@ def test_container_supports_bedrock_transport(
     captured: dict[str, object] = {}
 
     class StubBedrockAdapter:
-        def __init__(self, **kwargs: object) -> None:
-            captured.update(kwargs)
+        def __init__(self, *, config: object) -> None:
+            captured["config"] = config
             self.seen_prompts: list[str] = []
 
         def invoke(self, prompt: str, *, model: str, timeout: int) -> str | None:
@@ -240,8 +241,11 @@ def test_container_supports_bedrock_transport(
     container = ToolkitContainer(settings)
 
     assert isinstance(container.claude, StubBedrockAdapter)
-    assert captured["region"] == "us-east-1"
-    assert captured["timeouts"] == (
+
+    config = captured["config"]
+    assert isinstance(config, BedrockAdapterConfig)
+    assert config.region == "us-east-1"
+    assert config.timeouts == (
         requested_read_timeout,
         requested_connect_timeout,
     )
